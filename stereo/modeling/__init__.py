@@ -12,6 +12,7 @@ from .models.msnet.trainer import Trainer as MSNetTrainer
 from .models.psmnet.trainer import Trainer as PSMNetTrainer
 from .models.sttr.trainer import Trainer as STTRTrainer
 from .models.lightstereo.trainer import Trainer as LightStereoTrainer
+from .models.usamnet.trainer import Trainer as USAMNetTrainer
 
 
 __all__ = {
@@ -27,7 +28,8 @@ __all__ = {
     'CFNet': CFNetTrainer,
     'CasGwcNet': CasStereoTrainer,
     'CasPSMNet': CasStereoTrainer,
-    'LightStereo': LightStereoTrainer
+    'LightStereo': LightStereoTrainer,
+    'USAMNet': USAMNetTrainer,
 }
 
 

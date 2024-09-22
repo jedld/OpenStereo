@@ -3,3 +3,13 @@
 **.DS_Store**
 stereo/config
 tools/lazyconfig_train.py
+*.checkpoint
+output/
+data/KITTI15/training/
+data/KITTI15/testing/
+data/KITTI12/training/
+data/KITTI12/testing/
+.vscode
+stereo/libs/AANet/deform_conv/build/
+stereo/libs/AANet/deform_conv/deform_conv.egg-info/
+stereo/libs/AANet/deform_conv/dist/

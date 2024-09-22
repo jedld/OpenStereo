@@ -15,7 +15,7 @@ DATA_CONFIG:
                 EVALUATING: ./data/KITTI15//kitti15_val20.txt,
                 TESTING: ./data/KITTI15//kitti15_test.txt
             }
-            DATA_PATH: /yourpath/kitti15
+            DATA_PATH: /home/jedld/workspace/OpenStereo/data/KITTI15
             RETURN_RIGHT_DISP: true
 
     DATA_TRANSFORM:

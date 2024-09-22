@@ -4,7 +4,7 @@ DATA_CONFIG:
             DATA_SPLIT: {
                 EVALUATING: ./data/DrivingStereo/driving_stereo_half_test.txt
             }
-            DATA_PATH: /yourpath/DrivingStereo
+            DATA_PATH: /mnt/data/drivingstereo
             RETURN_RIGHT_DISP: false
 
     DATA_TRANSFORM:

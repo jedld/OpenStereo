@@ -21,7 +21,6 @@ class DatasetTemplate(torch_data.Dataset):
         self.data_cfg = data_cfg
         self.mode = mode
         self.root = self.data_info.DATA_PATH
-
         self.split_file = self.data_info.DATA_SPLIT[self.mode.upper()]
         self.data_list = []
         if os.path.exists(self.split_file):

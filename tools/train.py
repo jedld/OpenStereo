@@ -74,7 +74,7 @@ def main():
     # savedir
     args.output_dir = str(os.path.join(args.save_root_dir, args.exp_group_path, args.tag, args.extra_tag))
     if os.path.exists(args.output_dir) and args.extra_tag != 'debug' and cfgs.MODEL.CKPT == -1:
-        raise Exception('There is already an exp with this name')
+        raise Exception(f'{args.output_dir}: There is already an exp with this name')
     if args.dist_mode:
         dist.barrier()
     args.ckpt_dir = os.path.join(args.output_dir, 'ckpt')
