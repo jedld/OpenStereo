@@ -30,6 +30,10 @@ __all__ = {
     'CasPSMNet': CasStereoTrainer,
     'LightStereo': LightStereoTrainer,
     'USAMNet': USAMNetTrainer,
+    'UNet': USAMNetTrainer,
+    'SaUSAMNet': USAMNetTrainer,
+    'SaUNet': USAMNetTrainer,
+    'USAMNetv2': USAMNetTrainer
 }
 
 

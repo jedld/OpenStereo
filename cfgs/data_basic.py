@@ -1,7 +1,7 @@
 # @Time    : 2024/4/1 13:41
 # @Author  : zhangchenming
 DATA_PATH_DICT = {
-    'SceneFlowDataset': '/mnt/nas/algorithm/chenming.zhang/dataset/SceneFlow',
+    'SceneFlowDataset': '/home/jedld/workspace/sceneflow',
     'FlyingThings3DSubsetDataset': '/mnt/nas/algorithm/chenming.zhang/dataset/SceneFlow',
     'KittiDataset12': '/home/jedld/workspace/OpenStereo/data/KITTI12',
     'KittiDataset15': '/home/jedld/workspace/OpenStereo/data/KITTI15',

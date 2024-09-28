@@ -1,0 +1,74 @@
+DATA_CONFIG:
+    DATA_INFOS:
+        -   DATASET: DrivingDataset
+            DATA_SPLIT: {
+                TESTING: ./data/DrivingStereo/driving_stereo_half_test.txt,
+                TRAINING: ./data/DrivingStereo/driving_stereo_half_train.txt,
+                EVALUATING: ./data/DrivingStereo/driving_stereo_half_test.txt,
+            }
+            DATA_PATH: data/DrivingStereo
+            RETURN_RIGHT_DISP: false
+
+    DATA_TRANSFORM:
+        EVALUATING:
+            - { NAME: CropOrPad, SIZE: [ 400, 879 ] }
+            - { NAME: TransposeImage }
+            - { NAME: ToTensor }
+            - { NAME: NormalizeImage, MEAN: [ 0.50625424, 0.52283798, 0.41453917 ], STD: [ 0.21669488, 0.1980729 , 0.18691985 ] }
+        TRAINING:
+            - { NAME: CropOrPad, SIZE: [ 400, 879 ] }
+            - { NAME: StereoColorJitter, BRIGHTNESS: 0.1, CONTRAST: 0.1, SATURATION: 0.1, HUE: 0.1, ASYMMETRIC_PROB: 0.0 }
+            - { NAME: TransposeImage }
+            - { NAME: ToTensor }
+            - { NAME: NormalizeImage, MEAN: [ 0.50625424, 0.52283798, 0.41453917 ], STD: [ 0.21669488, 0.1980729 , 0.18691985 ] }
+
+MODEL:
+    NAME: LightStereo
+    MAX_DISP: 192
+    EXPANSE_RATIO: 8
+    AGGREGATION_BLOCKS: [ 8, 16, 32 ]
+    LEFT_ATT: true
+    FIND_UNUSED_PARAMETERS: false
+    CKPT: -1
+    PRETRAINED_MODEL: '' # The path of checkpoint trained with the Sceneflow dataset.
+
+OPTIMIZATION:
+    FREEZE_BN: false
+    SYNC_BN: true
+    AMP: false
+    BATCH_SIZE_PER_GPU: 2
+    NUM_EPOCHS: 500
+
+    OPTIMIZER:
+        NAME: AdamW
+        LR: &lr 0.0002
+        WEIGHT_DECAY: 1.0e-05
+        EPS: 1.0e-08
+
+    SCHEDULER:
+        NAME: OneCycleLR
+        MAX_LR: *lr
+        PCT_START: 0.01
+        ON_EPOCH: False
+
+    CLIP_GRAD:
+        TYPE: value
+        CLIP_VALUE: 0.1
+
+EVALUATOR:
+    BATCH_SIZE_PER_GPU: 1
+    MAX_DISP: 192
+    METRIC:
+        - d1_all
+        - epe
+        - thres_1
+        - thres_2
+        - thres_3
+
+TRAINER:
+    EVAL_INTERVAL: 100
+    CKPT_SAVE_INTERVAL: 1
+    MAX_CKPT_SAVE_NUM: 100
+    LOGGER_ITER_INTERVAL: 10
+    TRAIN_VISUALIZATION: True
+    EVAL_VISUALIZATION: True

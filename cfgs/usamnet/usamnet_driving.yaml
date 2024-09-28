@@ -2,16 +2,16 @@ DATA_CONFIG:
     DATA_INFOS:
         -   DATASET: DrivingDataset
             DATA_SPLIT: {
-                TESTING: ./data/DrivingStereo/driving_stereo_half_test.txt,
                 TRAINING: ./data/DrivingStereo/driving_stereo_half_train.txt,
-                EVALUATING: ./data/DrivingStereo/driving_stereo_half_test.txt,
+                EVALUATING: ./data/DrivingStereo/driving_stereo_full_test.txt,
+                TESTING: ./data/DrivingStereo/driving_stereo_full_test.txt
             }
             DATA_PATH: data/DrivingStereo
             RETURN_RIGHT_DISP: false
 
     DATA_TRANSFORM:
         EVALUATING:
-            - { NAME: CropOrPad, SIZE: [ 400, 879 ] }
+            - { NAME: CropOrPad, SIZE: [ 800, 1762 ] }
             - { NAME: TransposeImage }
             - { NAME: ToTensor }
             - { NAME: NormalizeImage, MEAN: [ 0.50625424, 0.52283798, 0.41453917 ], STD: [ 0.21669488, 0.1980729 , 0.18691985 ] }
@@ -35,14 +35,16 @@ MODEL:
     NAME: USAMNet
     MAX_DISP: 192
     CKPT: -1
-    PRETRAINED_MODEL: ''
+    KITTI: false
+    LOAD_PRETRAIN: false
+    PRETRAINED_MODEL: output/SceneFlowDataset/USAMNet/usamnet_sceneflow/default/ckpt/checkpoint_epoch_59.pth
 
 OPTIMIZATION:
     FREEZE_BN: false
     SYNC_BN: true
     AMP: false
-    BATCH_SIZE_PER_GPU: 16
-    NUM_EPOCHS: 30
+    BATCH_SIZE_PER_GPU: 12
+    NUM_EPOCHS: 10
 
     OPTIMIZER:
         NAME: AdamW

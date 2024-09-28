@@ -100,7 +100,7 @@ class BaselineStereoCNN(nn.Module):
         return self.forward(input), None
     
 class BaselineStereoCNN2(nn.Module):
-    def __init__(self, device):
+    def __init__(self, device, kitti=False):
         super(BaselineStereoCNN2, self).__init__()
         self.down1 = nn.Sequential(
             nn.Conv2d(6, 64, kernel_size=3, stride=2, padding=1),
@@ -126,9 +126,15 @@ class BaselineStereoCNN2(nn.Module):
             nn.BatchNorm2d(1024)
         )
 
+        if kitti:
+            output_padding = 1
+            output_padding2 = (0, 1)
+        else:
+            output_padding = 0
+            output_padding2 = 0
 
         self.up1 = nn.Sequential(
-            nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1),
+            nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1, output_padding=output_padding),
             nn.LeakyReLU(),
             nn.BatchNorm2d(512)
         )
@@ -149,17 +155,17 @@ class BaselineStereoCNN2(nn.Module):
         )
 
         self.up5 = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, kernel_size=(4, 3), stride=2, padding=1),
+            nn.ConvTranspose2d(64, 32, kernel_size=(4, 3), stride=2, padding=1, output_padding=output_padding2),
             nn.LeakyReLU(),
             nn.BatchNorm2d(32)
         )
 
         self.conv = nn.Sequential(
+            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(),
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.LeakyReLU(),
-            nn.Conv2d(128, 1, kernel_size=1, stride=1, padding=0),
+            nn.Conv2d(64, 1, kernel_size=1, stride=1, padding=0),
             nn.Sigmoid()
         )
         self.device = device
@@ -170,7 +176,7 @@ class BaselineStereoCNN2(nn.Module):
         down3 = self.down3(down2)
         down4 = self.down4(down3)
         down5 = self.down5(down4)
-        
+
         up1 = self.up1(down5) + down4
         up2 = self.up2(up1) + down3
         up3 = self.up3(up2) + down2
@@ -178,6 +184,9 @@ class BaselineStereoCNN2(nn.Module):
         up5 = self.up5(up4)
         return self.conv(up5) * 255
         
+        
+    
+
     
     def inference(self, left_img, right_img):
         transform = test_transform_fn()
@@ -191,35 +200,54 @@ class BaseSegmentationCNN(nn.Module):
         transform = test_transform_fn()
         transform_segmentation = test_transform_seg_fn()
 
-        # check if there is a batch dimension, remove it
-        if len(left_img.shape) == 4:
-            left_img = left_img[0]
-            right_img = right_img[0]
+        # Remove the code that removes the batch dimension
+        # left_img and right_img are tensors of shape (batch_size, channels, height, width)
 
+        # Generate masks for each image in the batch
         left_mask = self.generate_segment_map(left_img)
-        left_img = transform(left_img).to(self.device).unsqueeze(0)
-        right_img = transform(right_img).to(self.device).unsqueeze(0)
 
-        left_mask = transform_segmentation(left_mask).to(self.device).unsqueeze(0)
-        input = torch.cat((left_img, right_img, left_mask), 1)
+        # Apply transforms to each image in the batch
+        left_img = torch.stack([transform(img) for img in left_img])
+        right_img = torch.stack([transform(img) for img in right_img])
+        left_mask = torch.stack([transform_segmentation(mask) for mask in left_mask])
+
+        # Move tensors to the appropriate device
+        left_img = left_img.to(self.device)
+        right_img = right_img.to(self.device)
+        left_mask = left_mask.to(self.device)
+
+        # Concatenate along the channel dimension
+        input = torch.cat((left_img, right_img, left_mask), dim=1)
         return self.forward(input), left_mask
 
 
-    def generate_segment_map(self, image):
-        masks = self.mask_generator.generate(image)
-        processed_image = np.zeros_like(image)
+    def generate_segment_map(self, images):
+        # images: tensor of shape (batch_size, channels, height, width)
+        processed_images = []
 
-        for i, mask in enumerate(masks):
-            color = (i%255, i*10%255, i*100%255)
-            color_mask = np.zeros_like(image)
-            color_mask[ : , : , : ] = color
-            segmentation_mask = np.array(mask['segmentation'], dtype=np.uint8)
-            processed_image += cv2.bitwise_and(color_mask, color_mask, mask=segmentation_mask)
+        for img in images:
+            # Convert tensor to numpy array and rearrange dimensions to (height, width, channels)
+            img_np = img.permute(1, 2, 0).cpu().numpy()
+            masks = self.mask_generator.generate(img_np)
+            processed_img = np.zeros_like(img_np)
 
-        return processed_image
+            for i, mask in enumerate(masks):
+                color = (i % 255, i * 10 % 255, i * 100 % 255)
+                color_mask = np.zeros_like(img_np)
+                color_mask[:, :, :] = color
+                segmentation_mask = np.array(mask['segmentation'], dtype=np.uint8)
+                processed_img += cv2.bitwise_and(color_mask, color_mask, mask=segmentation_mask)
+
+            # Convert the processed image back to a tensor and rearrange dimensions to (channels, height, width)
+            processed_img_tensor = torch.from_numpy(processed_img).permute(2, 0, 1)
+            processed_images.append(processed_img_tensor)
+
+        # Stack all processed images to form a batch
+        processed_images = torch.stack(processed_images)
+        return processed_images
 
 class SegStereoCNN2(BaseSegmentationCNN):
-    def __init__(self, device, load_sam=False):
+    def __init__(self, device, load_sam=False, kitti=False):
         super(SegStereoCNN2, self).__init__()
         self.down1 = nn.Sequential(
             nn.Conv2d(9, 64, kernel_size=3, stride=2, padding=1),
@@ -244,8 +272,16 @@ class SegStereoCNN2(BaseSegmentationCNN):
             nn.LeakyReLU(),
             nn.BatchNorm2d(1024)
         )
+
+        if kitti:
+            output_padding = 1
+            output_padding2 = (0, 1)
+        else:
+            output_padding = 0
+            output_padding2 = 0
+
         self.up1 = nn.Sequential(
-            nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1),
+            nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1, output_padding=output_padding),
             nn.LeakyReLU(),
             nn.BatchNorm2d(512)
         )
@@ -265,7 +301,7 @@ class SegStereoCNN2(BaseSegmentationCNN):
             nn.BatchNorm2d(64)
         )
         self.up5 = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, kernel_size=(4, 3), stride=2, padding=1),
+            nn.ConvTranspose2d(64, 32, kernel_size=(4, 3), stride=2, padding=1, output_padding=output_padding2),
             nn.LeakyReLU(),
             nn.BatchNorm2d(32)
         )
@@ -471,18 +507,19 @@ class SASegStereoCNN(BaseSegmentationCNN):
         down3 = self.down3(down2)
         down4 = self.down4(down3)
         down5 = self.down5(down4)
-        sa = self.self_attention(down5)    
+        sa = self.self_attention(down5)
         up1 = self.up1(sa) + down4
         up2 = self.up2(up1) + down3
         up3 = self.up3(up2) + down2
         up4 = self.up4(up3) + down1
         up5 = self.up5(up4)
         return self.conv(up5) * 255
-    
+
 
 class SASegStereoCNN2(BaseSegmentationCNN):
-    def __init__(self, device, load_sam=False):
+    def __init__(self, device, load_sam=False, kitti=False):
         super(SASegStereoCNN2, self).__init__()
+
         self.down1 = nn.Sequential(
             nn.Conv2d(9, 64, kernel_size=3, stride=2, padding=1),
             nn.LeakyReLU(),
@@ -506,11 +543,18 @@ class SASegStereoCNN2(BaseSegmentationCNN):
             nn.LeakyReLU(),
             nn.BatchNorm2d(1024)
         )
-        
+
         self.self_attention = SelfAttention(1024)
 
+        if kitti:
+            output_padding = 1
+            output_padding2 = (0, 1)
+        else:
+            output_padding = 0
+            output_padding2 = 0
+
         self.up1 = nn.Sequential(
-            nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1),
+            nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1, output_padding=output_padding),
             nn.LeakyReLU(),
             nn.BatchNorm2d(512)
         )
@@ -530,7 +574,7 @@ class SASegStereoCNN2(BaseSegmentationCNN):
             nn.BatchNorm2d(64)
         )
         self.up5 = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, kernel_size=(4, 3), stride=2, padding=1),
+            nn.ConvTranspose2d(64, 32, kernel_size=(4, 3), stride=2, padding=1, output_padding=output_padding2),
             nn.LeakyReLU(),
             nn.BatchNorm2d(32)
         )
@@ -554,7 +598,7 @@ class SASegStereoCNN2(BaseSegmentationCNN):
         down3 = self.down3(down2)
         down4 = self.down4(down3)
         down5 = self.down5(down4)
-        sa = self.self_attention(down5)    
+        sa = self.self_attention(down5)
         up1 = self.up1(sa) + down4
         up2 = self.up2(up1) + down3
         up3 = self.up3(up2) + down2
@@ -564,7 +608,7 @@ class SASegStereoCNN2(BaseSegmentationCNN):
 
 
 class SAStereoCNN2(BaseSegmentationCNN):
-    def __init__(self, device, load_sam=False):
+    def __init__(self, device, load_sam=False, kitti=False, full_res=True):
         super(SAStereoCNN2, self).__init__()
         self.down1 = nn.Sequential(
             nn.Conv2d(6, 64, kernel_size=3, stride=2, padding=1),
@@ -589,11 +633,20 @@ class SAStereoCNN2(BaseSegmentationCNN):
             nn.LeakyReLU(),
             nn.BatchNorm2d(1024)
         )
-        
+
         self.self_attention = SelfAttention(1024)
+        if kitti:
+            output_padding = 1
+            output_padding2 = (0, 1)
+        elif full_res:
+            output_padding = (1, 0)
+            output_padding2 = 0
+        else:
+            output_padding = 0
+            output_padding2 = 0
 
         self.up1 = nn.Sequential(
-            nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1),
+            nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1, output_padding=output_padding),
             nn.LeakyReLU(),
             nn.BatchNorm2d(512)
         )
@@ -613,7 +666,7 @@ class SAStereoCNN2(BaseSegmentationCNN):
             nn.BatchNorm2d(64)
         )
         self.up5 = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, kernel_size=(4, 3), stride=2, padding=1),
+            nn.ConvTranspose2d(64, 32, kernel_size=(4, 3), stride=2, padding=1, output_padding=output_padding2),
             nn.LeakyReLU(),
             nn.BatchNorm2d(32)
         )
@@ -638,39 +691,36 @@ class SAStereoCNN2(BaseSegmentationCNN):
         down4 = self.down4(down3)
         down5 = self.down5(down4)
         sa = self.self_attention(down5)
+
         up1 = self.up1(sa) + down4
+        print(f"self.up1  {self.up2(up1).shape} {down3.shape} {up1.shape}")
         up2 = self.up2(up1) + down3
         up3 = self.up3(up2) + down2
         up4 = self.up4(up3) + down1
         up5 = self.up5(up4)
         return self.conv(up5) * 255
 
-class SAStereoCNN3(BaselineStereoCNN):
-    def __init__(self, device):
-        super(SAStereoCNN3, self).__init__(device)
-        #  input channels = 6, 400x879
+class SAStereoCNN3(BaseSegmentationCNN):
+    def __init__(self, device, load_sam=False, kitti=False):
+        super(SAStereoCNN3, self).__init__()
         self.down1 = nn.Sequential(
             nn.Conv2d(6, 64, kernel_size=3, stride=2, padding=1),
             nn.LeakyReLU(),
             nn.BatchNorm2d(64))
-        # 64, 200x440
         self.down2 = nn.Sequential(
             nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
             nn.LeakyReLU(),
             nn.BatchNorm2d(128))
-        # 128, 100x220
         self.down3 = nn.Sequential(
             nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1),
             nn.LeakyReLU(),
             nn.BatchNorm2d(256)
         )
-        # 256, 50x110
         self.down4 = nn.Sequential(
             nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1),
             nn.LeakyReLU(),
             nn.BatchNorm2d(512)
         )
-        # 512, 25x55
         self.down5 = nn.Sequential(
             nn.Conv2d(512, 1024, kernel_size=3, stride=2, padding=1),
             nn.LeakyReLU(),
@@ -678,58 +728,59 @@ class SAStereoCNN3(BaselineStereoCNN):
         )
 
         self.self_attention = SelfAttention(1024)
+        if kitti:
+            output_padding = 1
+            output_padding2 = (0, 1)
+        else:
+            output_padding = 0
+            output_padding2 = 0
 
-        # 1024, 13x28
         self.up1 = nn.Sequential(
-            nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1),
+            nn.ConvTranspose2d(1024, 512, kernel_size=3, stride=2, padding=1, output_padding=output_padding),
             nn.LeakyReLU(),
             nn.BatchNorm2d(512)
         )
-
-        # 512, 25x55
         self.up2 = nn.Sequential(
             nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1),
             nn.LeakyReLU(),
             nn.BatchNorm2d(256)
         )
-
-        # 256, 50x110
         self.up3 = nn.Sequential(
             nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),
             nn.LeakyReLU(),
             nn.BatchNorm2d(128)
         )
-
-        # 128, 100x220
         self.up4 = nn.Sequential(
             nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
             nn.LeakyReLU(),
             nn.BatchNorm2d(64)
         )
-
-        # 64, 200x440
         self.up5 = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, kernel_size=(4, 3), stride=2, padding=1),
+            nn.ConvTranspose2d(64, 32, kernel_size=(4, 3), stride=2, padding=1, output_padding=output_padding2),
             nn.LeakyReLU(),
             nn.BatchNorm2d(32)
         )
 
-        # 32, 400x879
+        self.pathway = nn.Sequential(
+            nn.ConvTranspose2d(6, 32, kernel_size=5, stride=1, padding=2),
+            nn.LeakyReLU(),
+            nn.BatchNorm2d(32)
+        )
+
         self.conv = nn.Sequential(
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
             nn.BatchNorm2d(32),
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
             nn.BatchNorm2d(64),
-            nn.Conv2d(64, 128, kernel_size=4, stride=1, padding=3),
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(),
             nn.BatchNorm2d(128),
             nn.Conv2d(128, 1, kernel_size=1, stride=1, padding=0),
             nn.Sigmoid()
         )
         self.device = device
-
 
     def forward(self, x):
         down1 = self.down1(x)
@@ -742,25 +793,54 @@ class SAStereoCNN3(BaselineStereoCNN):
         up2 = self.up2(up1) + down3
         up3 = self.up3(up2) + down2
         up4 = self.up4(up3) + down1
-        up5 = self.up5(up4)
+        up5 = torch.concat((self.up5(up4),self.pathway(x)),1)
         return self.conv(up5) * 255
-
-class SaUSAMNet(SAStereoCNN2):
+class SaUNet(SegStereoCNN2):
     def __init__(self, cfgs):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        super().__init__(device, True)
+        super().__init__(device, True, kitti=cfgs.KITTI)
         self.max_disp = cfgs.MAX_DISP
+        if cfgs.LOAD_PRETRAIN:
+            print("Loading pretrained model")
+            self.load_state_dict(torch.load('pretrained/seg-unet.checkpoint'))
         # self.load_state_dict(torch.load('stereo_cnn_stereo_cnn_sa_baseline.checkpoint'))
 
     def forward(self, data):
         image1 = data['left']
         image2 = data['right']
-        if self.training:
-            segmentation = data['segmentation']
-            input = torch.cat((image1, image2, segmentation), 1)
-            result = super().forward(input)
-        else:
-            result = super().inference(self, image1, image2)
+        segmentation = data['seg']
+
+        input = torch.cat((image1, image2, segmentation), 1)
+        result = super().forward(input)
+
+        return { 'disp_pred': result }
+
+    def get_loss(self, model_pred, input_data):
+        disp_gt = input_data["disp"].unsqueeze(1)  # [bz, h, w]
+        mask = (disp_gt < self.max_disp) & (disp_gt > 0)  # [bz, 1, h, w]
+        disp_pred = model_pred['disp_pred']
+        loss = F.smooth_l1_loss(disp_pred[mask], disp_gt[mask])
+        loss_info = {'scalar/train/loss_disp': loss.item()}
+        return loss, loss_info
+
+class SaUSAMNet(SASegStereoCNN2):
+    def __init__(self, cfgs):
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        super().__init__(device, True, kitti=cfgs.KITTI)
+        self.max_disp = cfgs.MAX_DISP
+        if cfgs.LOAD_PRETRAIN:
+            print("Loading pretrained model")
+            self.load_state_dict(torch.load('pretrained/seg-usamnet.checkpoint'))
+        # self.load_state_dict(torch.load('stereo_cnn_stereo_cnn_sa_baseline.checkpoint'))
+
+    def forward(self, data):
+        image1 = data['left']
+        image2 = data['right']
+        segmentation = data['seg']
+
+        input = torch.cat((image1, image2, segmentation), 1)
+        result = super().forward(input)
+
         return { 'disp_pred': result }
 
     def get_loss(self, model_pred, input_data):
@@ -774,9 +854,35 @@ class SaUSAMNet(SAStereoCNN2):
 class USAMNet(SAStereoCNN2):
     def __init__(self, cfgs):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        super().__init__(device)
+        super().__init__(device, kitti=cfgs.KITTI)
         self.max_disp = cfgs.MAX_DISP
-        # self.load_state_dict(torch.load('stereo_cnn_stereo_cnn_sa_baseline.checkpoint'))
+        if cfgs.LOAD_PRETRAIN:
+            print("Loading pretrained model")
+            self.load_state_dict(torch.load('pretrained/usamnet.checkpoint'))
+
+    def forward(self, data):
+        image1 = data['left']
+        image2 = data['right']
+        input = torch.cat((image1, image2), 1)
+        result = super().forward(input)
+        return { 'disp_pred': result }
+
+    def get_loss(self, model_pred, input_data):
+        disp_gt = input_data["disp"].unsqueeze(1)  # [bz, h, w]
+        mask = (disp_gt < self.max_disp) & (disp_gt > 0)  # [bz, 1, h, w]
+        disp_pred = model_pred['disp_pred']
+        loss = F.smooth_l1_loss(disp_pred[mask], disp_gt[mask])
+        loss_info = {'scalar/train/loss_disp': loss.item()}
+        return loss, loss_info
+
+class USAMNetv2(SAStereoCNN3):
+    def __init__(self, cfgs):
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        super().__init__(device, kitti=cfgs.KITTI)
+        self.max_disp = cfgs.MAX_DISP
+        if cfgs.LOAD_PRETRAIN:
+            print("Loading pretrained model")
+            self.load_state_dict(torch.load('pretrained/usamnet.checkpoint'))
 
     def forward(self, data):
         image1 = data['left']
@@ -796,9 +902,11 @@ class USAMNet(SAStereoCNN2):
 class UNet(BaselineStereoCNN2):
     def __init__(self, cfgs):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        super().__init__(device)
+        super().__init__(device, cfgs.KITTI)
         self.max_disp = cfgs.MAX_DISP
-        # self.load_state_dict(torch.load('stereo_cnn_stereo_cnn_sa_baseline.checkpoint'))
+        if cfgs.LOAD_PRETRAIN:
+            print("Loading pretrained model")
+            self.load_state_dict(torch.load('pretrained/unet.checkpoint'))
 
     def forward(self, data):
         image1 = data['left']

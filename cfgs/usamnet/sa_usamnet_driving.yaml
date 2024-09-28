@@ -2,22 +2,23 @@ DATA_CONFIG:
     DATA_INFOS:
         -   DATASET: DrivingDataset
             DATA_SPLIT: {
-                TESTING: ./data/DrivingStereo/driving_stereo_half_test.txt,
-                TRAINING: ./data/DrivingStereo/driving_stereo_half_train.txt,
-                EVALUATING: ./data/DrivingStereo/driving_stereo_half_test.txt,
+                TESTING: ./data/DrivingStereo/driving_stereo_half_test_segmentation.txt,
+                TRAINING: ./data/DrivingStereo/driving_stereo_train_segmentation.txt,
+                EVALUATING: ./data/DrivingStereo/driving_stereo_half_test_segmentation.txt,
             }
-            DATA_PATH: data/DrivingStereo
+            DATA_PATH: /mnt/data/drivingstereo
             RETURN_RIGHT_DISP: false
+            USE_SEGMENTATION: true
 
     DATA_TRANSFORM:
         EVALUATING:
-            - { NAME: CropOrPad, SIZE: [ 400, 879 ] }
+            - { NAME: CropOrPad, SIZE: [ 800, 1762 ] }
             - { NAME: TransposeImage }
             - { NAME: ToTensor }
             - { NAME: NormalizeImage, MEAN: [ 0.50625424, 0.52283798, 0.41453917 ], STD: [ 0.21669488, 0.1980729 , 0.18691985 ] }
         TRAINING:
             - { NAME: CropOrPad, SIZE: [ 400, 879 ] }
-            - { NAME: StereoColorJitter, BRIGHTNESS: 0.1, CONTRAST: 0.1, SATURATION: 0.1, HUE: 0.1, ASYMMETRIC_PROB: 0.0 }
+            - { NAME: StereoColorJitter, BRIGHTNESS: 0.1,CONTRAST: 0.1, SATURATION: 0.1, HUE: 0.1, USE_SEGMENTATION: true, SEG_BRIGHTNESS: 0.5, SEG_CONTRAST: 0.5, SEG_SATURATION: 0.5, SEG_HUE: 0.5, ASYMMETRIC_PROB: 0.0 }
             - { NAME: TransposeImage }
             - { NAME: ToTensor }
             - { NAME: NormalizeImage, MEAN: [ 0.50625424, 0.52283798, 0.41453917 ], STD: [ 0.21669488, 0.1980729 , 0.18691985 ] }
@@ -32,17 +33,19 @@ EVALUATOR:
         - thres_2
         - thres_3
 MODEL:
-    NAME: USAMNet
+    NAME: SaUSAMNet
     MAX_DISP: 192
     CKPT: -1
+    LOAD_PRETRAIN: true
     PRETRAINED_MODEL: ''
+    KITTI: false
 
 OPTIMIZATION:
     FREEZE_BN: false
     SYNC_BN: true
     AMP: false
     BATCH_SIZE_PER_GPU: 16
-    NUM_EPOCHS: 30
+    NUM_EPOCHS: 10
 
     OPTIMIZER:
         NAME: AdamW

@@ -13,3 +13,5 @@ data/KITTI12/testing/
 stereo/libs/AANet/deform_conv/build/
 stereo/libs/AANet/deform_conv/deform_conv.egg-info/
 stereo/libs/AANet/deform_conv/dist/
+tmp/
+.trunk/

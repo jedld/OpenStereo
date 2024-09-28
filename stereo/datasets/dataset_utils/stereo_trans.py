@@ -7,6 +7,7 @@ import cv2
 from torchvision.transforms.functional import normalize
 from PIL import Image
 from torchvision.transforms import ColorJitter
+import pdb
 
 
 class Compose(object):
@@ -26,8 +27,42 @@ class TransposeImage(object):
     def __call__(self, sample):
         sample['left'] = sample['left'].transpose((2, 0, 1))
         sample['right'] = sample['right'].transpose((2, 0, 1))
+        if 'seg' in sample:
+            sample['seg'] = sample['seg'].transpose((2, 0, 1))
         return sample
 
+class TransposeSegment(object):
+    def __init__(self, config):
+        self.config = config
+
+    def __call__(self, sample):
+        sample['seg'] = sample['seg'].transpose((2, 0, 1))
+        return sample
+
+class JitterSegment(object):
+    def __init__(self, config):
+        self.brightness = config.BRIGHTNESS
+        self.contrast = config.CONTRAST
+        self.saturation = config.SATURATION
+        self.hue = config.HUE
+        self.asymmetric_color_aug_prob = config.ASYMMETRIC_PROB
+        self.color_jitter = ColorJitter(brightness=self.brightness, contrast=self.contrast,
+                                        saturation=self.saturation, hue=self.hue / 3.14)
+
+    def __call__(self, sample):
+        img1 = sample['seg']
+        # asymmetric
+        if np.random.rand() < self.asymmetric_color_aug_prob:
+            img1 = np.array(self.color_jitter(Image.fromarray(img1.astype(np.uint8))), dtype=np.uint8)
+        # symmetric
+        else:
+            image_stack = np.concatenate([img1], axis=0).astype(np.uint8)
+            image_stack = np.array(self.color_jitter(Image.fromarray(image_stack)), dtype=np.uint8)
+            img1 = np.split(image_stack, 2, axis=0)
+
+        sample['seg'] = img1
+
+        return sample
 
 class ToTensor(object):
     def __init__(self, config):
@@ -106,7 +141,7 @@ class RandomScale(object):
 
         if np.random.rand() < self.scale_prob:
             for k in sample.keys():
-                if k in ['left', 'right']:
+                if k in ['left', 'right', 'seg']:
                     sample[k] = cv2.resize(sample[k], None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
 
                 elif k in ['disp', 'disp_right']:
@@ -133,7 +168,7 @@ class RandomSparseScale(object):
 
         if np.random.rand() < self.scale_prob:
             for k in sample.keys():
-                if k in ['left', 'right']:
+                if k in ['left', 'right', 'seg']:
                     sample[k] = cv2.resize(sample[k], None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
 
                 elif k in ['disp', 'disp_right']:
@@ -195,7 +230,6 @@ class RandomErase(object):
         sample['right'] = img2
         return sample
 
-
 class StereoColorJitter(object):
     def __init__(self, config):
         self.brightness = config.BRIGHTNESS
@@ -219,8 +253,51 @@ class StereoColorJitter(object):
             image_stack = np.array(self.color_jitter(Image.fromarray(image_stack)), dtype=np.uint8)
             img1, img2 = np.split(image_stack, 2, axis=0)
 
-        sample['left'] = img1
-        sample['right'] = img2
+        return sample
+class StereoColorJitterSegmentation(object):
+    def __init__(self, config):
+        self.brightness = config.BRIGHTNESS
+        self.contrast = config.CONTRAST
+        self.saturation = config.SATURATION
+        self.hue = config.HUE
+        self.asymmetric_color_aug_prob = config.ASYMMETRIC_PROB
+        self.color_jitter = ColorJitter(brightness=self.brightness, contrast=self.contrast,
+                                        saturation=self.saturation, hue=self.hue / 3.14)
+
+        self.seg_brightness = config.SEG_BRIGHTNESS
+        self.seg_contrast = config.SEG_CONTRAST
+        self.seg_saturation = config.SEG_SATURATION
+        self.seg_hue = config.SEG_HUE
+        
+        self.seg_color_jitter = ColorJitter(brightness=self.seg_brightness, contrast=self.seg_contrast,
+                                            saturation=self.seg_saturation, hue=self.seg_hue / 3.14)
+
+    def __call__(self, sample):
+        img1 = sample['left']
+        img2 = sample['right']
+        if 'seg' in sample:
+            seg = sample['seg']
+        # asymmetric
+        if np.random.rand() < self.asymmetric_color_aug_prob:
+            img1 = np.array(self.color_jitter(Image.fromarray(img1.astype(np.uint8))), dtype=np.uint8)
+            img2 = np.array(self.color_jitter(Image.fromarray(img2.astype(np.uint8))), dtype=np.uint8)
+            if 'seg' in sample:
+                seg = np.array(self.seg_color_jitter(Image.fromarray(seg.astype(np.uint8))), dtype=np.uint8)
+        # symmetric
+        else:
+            if 'seg' in sample:
+                image_stack = np.concatenate([img1, img2], axis=0).astype(np.uint8)
+                image_stack = np.array(self.color_jitter(Image.fromarray(image_stack)), dtype=np.uint8)
+                img1, img2 = np.split(image_stack, 2, axis=0)
+                sample['left'] = img1
+                sample['right'] = img2
+                sample['seg'] = np.array(self.seg_color_jitter(Image.fromarray(seg.astype(np.uint8))), dtype=np.uint8)
+            else:
+                image_stack = np.concatenate([img1, img2], axis=0).astype(np.uint8)
+                image_stack = np.array(self.color_jitter(Image.fromarray(image_stack)), dtype=np.uint8)
+                img1, img2 = np.split(image_stack, 2, axis=0)
+                sample['left'] = img1
+                sample['right'] = img2
 
         return sample
 
@@ -241,7 +318,7 @@ class RightTopPad(object):
         pad_bottom = 0
         # apply pad for left, right, disp image, and occ mask
         for k in sample.keys():
-            if k in ['left', 'right']:
+            if k in ['left', 'right', 'seg']:
                 pad_width = np.array([[pad_top, pad_bottom], [pad_left, pad_right], [0, 0]])
                 sample[k] = np.pad(sample[k], pad_width, 'edge')
 
@@ -283,7 +360,7 @@ class DivisiblePad(object):
 
         # apply pad for left, right, disp image, and occ mask
         for k in sample.keys():
-            if k in ['left', 'right']:
+            if k in ['left', 'right', 'seg']:
                 pad_width = np.array([[pad_top, pad_bottom], [pad_left, pad_right], [0, 0]])
                 sample[k] = np.pad(sample[k], pad_width, 'edge')
 
@@ -357,5 +434,21 @@ class CropOrPad(object):
             sample = self.pad_fn(sample)
         else:
             sample = self.crop_fn(sample)
+
+        return sample
+
+class ResizeImage(object):
+    def __init__(self, config):
+        self.size = config.SIZE
+        
+
+    def __call__(self, sample):
+        for k in sample.keys():
+            if k in ['left', 'right']:
+                sample[k] = cv2.resize(sample[k], self.size, interpolation=cv2.INTER_LINEAR)
+            elif k in ['disp', 'disp_right', 'seg']:
+                sample[k] = cv2.resize(sample[k], self.size, interpolation=cv2.INTER_NEAREST)
+            else:
+                raise Exception(f'no such key {k}')
 
         return sample

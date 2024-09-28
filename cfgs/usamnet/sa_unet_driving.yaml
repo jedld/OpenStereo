@@ -1,0 +1,73 @@
+DATA_CONFIG:
+    DATA_INFOS:
+        -   DATASET: DrivingDataset
+            DATA_SPLIT: {
+                TESTING: ./data/DrivingStereo/driving_stereo_half_test_segmentation.txt,
+                TRAINING: ./data/DrivingStereo/driving_stereo_train_segmentation.txt,
+                EVALUATING: ./data/DrivingStereo/driving_stereo_half_test_segmentation.txt,
+            }
+            DATA_PATH: /mnt/data/drivingstereo
+            RETURN_RIGHT_DISP: false
+            USE_SEGMENTATION: true
+
+    DATA_TRANSFORM:
+        EVALUATING:
+            - { NAME: CropOrPad, SIZE: [ 400, 879 ] }
+            - { NAME: TransposeImage }
+            - { NAME: ToTensor }
+            - { NAME: NormalizeImage, MEAN: [ 0.50625424, 0.52283798, 0.41453917 ], STD: [ 0.21669488, 0.1980729 , 0.18691985 ] }
+        TRAINING:
+            - { NAME: CropOrPad, SIZE: [ 400, 879 ] }
+            - { NAME: StereoColorJitter, BRIGHTNESS: 0.1,CONTRAST: 0.1, SATURATION: 0.1, HUE: 0.1, USE_SEGMENTATION: true, SEG_BRIGHTNESS: 0.5, SEG_CONTRAST: 0.5, SEG_SATURATION: 0.5, SEG_HUE: 0.5, ASYMMETRIC_PROB: 0.0 }
+            # - { NAME: JitterSegment, BRIGHTNESS: 0.1, CONTRAST: 0.5, SATURATION: 0.5, HUE: 0.5, ASYMMETRIC_PROB: 0.0 }
+            - { NAME: TransposeImage }
+            - { NAME: ToTensor }
+            - { NAME: NormalizeImage, MEAN: [ 0.50625424, 0.52283798, 0.41453917 ], STD: [ 0.21669488, 0.1980729 , 0.18691985 ] }
+
+EVALUATOR:
+    BATCH_SIZE_PER_GPU: 8
+    MAX_DISP: 192
+    METRIC:
+        - d1_all
+        - epe
+        - thres_1
+        - thres_2
+        - thres_3
+MODEL:
+    NAME: SaUNet
+    MAX_DISP: 192
+    CKPT: -1
+    LOAD_PRETRAIN: true
+    PRETRAINED_MODEL: ''
+    KITTI: false
+
+OPTIMIZATION:
+    FREEZE_BN: false
+    SYNC_BN: true
+    AMP: false
+    BATCH_SIZE_PER_GPU: 16
+    NUM_EPOCHS: 10
+
+    OPTIMIZER:
+        NAME: AdamW
+        LR: &lr 0.0001
+        WEIGHT_DECAY: 1.0e-05
+        EPS: 1.0e-08
+
+    SCHEDULER:
+        NAME: StepLR
+        GAMMA: 0.9
+        ON_EPOCH: True
+        STEP_SIZE: 1
+
+    CLIP_GRAD:
+        TYPE: value
+        CLIP_VALUE: 0.1
+
+TRAINER:
+    EVAL_INTERVAL: 1
+    CKPT_SAVE_INTERVAL: 1
+    MAX_CKPT_SAVE_NUM: 30
+    LOGGER_ITER_INTERVAL: 10
+    TRAIN_VISUALIZATION: True
+    EVAL_VISUALIZATION: True
