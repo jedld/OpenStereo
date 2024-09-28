@@ -44,19 +44,19 @@ MODEL:
     MAX_DISP: 192
     CKPT: -1
     KITTI: true
-    LOAD_PRETRAIN: true
-    PRETRAINED_MODEL: ''
+    LOAD_PRETRAIN: false
+    PRETRAINED_MODEL: '/home/jedld/workspace/OpenStereo/output/SceneFlowDataset/UNet/unet_sceneflow/default/ckpt/checkpoint_epoch_38.pth'
 
 OPTIMIZATION:
     FREEZE_BN: false
     SYNC_BN: true
     AMP: false
-    BATCH_SIZE_PER_GPU: 24
-    NUM_EPOCHS: 500
+    BATCH_SIZE_PER_GPU: 16
+    NUM_EPOCHS: 2000
 
     OPTIMIZER:
         NAME: AdamW
-        LR: &lr 0.00001
+        LR: &lr 0.0001
         WEIGHT_DECAY: 1.0e-05
         EPS: 1.0e-08
 
@@ -64,7 +64,7 @@ OPTIMIZATION:
         NAME: StepLR
         GAMMA: 0.9
         ON_EPOCH: True
-        STEP_SIZE: 10
+        STEP_SIZE: 100
 
     CLIP_GRAD:
         TYPE: value

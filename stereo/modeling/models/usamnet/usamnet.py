@@ -608,7 +608,7 @@ class SASegStereoCNN2(BaseSegmentationCNN):
 
 
 class SAStereoCNN2(BaseSegmentationCNN):
-    def __init__(self, device, load_sam=False, kitti=False, full_res=True):
+    def __init__(self, device, load_sam=False, kitti=False, full_res=False):
         super(SAStereoCNN2, self).__init__()
         self.down1 = nn.Sequential(
             nn.Conv2d(6, 64, kernel_size=3, stride=2, padding=1),
@@ -639,7 +639,7 @@ class SAStereoCNN2(BaseSegmentationCNN):
             output_padding = 1
             output_padding2 = (0, 1)
         elif full_res:
-            output_padding = (1, 0)
+            output_padding = (1, 1)
             output_padding2 = 0
         else:
             output_padding = 0
@@ -685,6 +685,7 @@ class SAStereoCNN2(BaseSegmentationCNN):
             self.mask_generator = SamAutomaticMaskGenerator(sam)
 
     def forward(self, x):
+
         down1 = self.down1(x)
         down2 = self.down2(down1)
         down3 = self.down3(down2)
@@ -693,7 +694,6 @@ class SAStereoCNN2(BaseSegmentationCNN):
         sa = self.self_attention(down5)
 
         up1 = self.up1(sa) + down4
-        print(f"self.up1  {self.up2(up1).shape} {down3.shape} {up1.shape}")
         up2 = self.up2(up1) + down3
         up3 = self.up3(up2) + down2
         up4 = self.up4(up3) + down1

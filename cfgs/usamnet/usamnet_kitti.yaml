@@ -21,8 +21,6 @@ DATA_CONFIG:
     DATA_TRANSFORM:
         TRAINING:
             - { NAME: StereoColorJitter, BRIGHTNESS: [ 0.7, 1.3 ], CONTRAST: [ 0.7, 1.3 ], SATURATION: [ 0.7, 1.3 ], HUE: 0.3, ASYMMETRIC_PROB: 0 }
-            - { NAME: RandomErase, PROB: 0.5, MAX_TIME: 2, BOUNDS: [ 50, 100 ] }
-            - { NAME: RandomSparseScale, SIZE: [ 320, 736 ], MIN_SCALE: 0.2, MAX_SCALE: 0.5, SCALE_PROB: 0.8 }
             - { NAME: RandomCrop, SIZE: [ 320, 736 ] }
             - { NAME: TransposeImage }
             - { NAME: ToTensor }
@@ -53,20 +51,24 @@ OPTIMIZATION:
     FREEZE_BN: false
     SYNC_BN: true
     AMP: false
-    BATCH_SIZE_PER_GPU: 2
-    NUM_EPOCHS: 500
+    BATCH_SIZE_PER_GPU: 12
+    NUM_EPOCHS: 2000
 
     OPTIMIZER:
         NAME: AdamW
-        LR: &lr 0.0002
+        LR: &lr 0.0001
         WEIGHT_DECAY: 1.0e-05
         EPS: 1.0e-08
 
     SCHEDULER:
-        NAME: OneCycleLR
-        MAX_LR: *lr
-        PCT_START: 0.01
-        ON_EPOCH: False
+        NAME: StepLR
+        GAMMA: 0.9
+        ON_EPOCH: True
+        STEP_SIZE: 100
+
+    CLIP_GRAD:
+        TYPE: value
+        CLIP_VALUE: 0.1
 
 TRAINER:
     EVAL_INTERVAL: 100

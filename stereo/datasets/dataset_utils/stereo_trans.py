@@ -440,7 +440,6 @@ class CropOrPad(object):
 class ResizeImage(object):
     def __init__(self, config):
         self.size = config.SIZE
-        
 
     def __call__(self, sample):
         for k in sample.keys():

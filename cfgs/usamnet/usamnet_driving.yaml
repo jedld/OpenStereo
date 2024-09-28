@@ -11,7 +11,7 @@ DATA_CONFIG:
 
     DATA_TRANSFORM:
         EVALUATING:
-            - { NAME: CropOrPad, SIZE: [ 800, 1762 ] }
+            - { NAME: DivisblePad, SIZE: [ 800, 1762 ] }
             - { NAME: TransposeImage }
             - { NAME: ToTensor }
             - { NAME: NormalizeImage, MEAN: [ 0.50625424, 0.52283798, 0.41453917 ], STD: [ 0.21669488, 0.1980729 , 0.18691985 ] }
