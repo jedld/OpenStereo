@@ -245,6 +245,33 @@ class TrainerTemplate:
                 write_tensorboard(self.tb_writer, tb_info, total_iter)
 
     @torch.no_grad()
+    def comparative_eval(self, other_model):
+        metric_func_dict = {
+            'epe': epe_metric,
+            'd1_all': d1_metric,
+            'thres_1': partial(threshold_metric, threshold=1),
+            'thres_2': partial(threshold_metric, threshold=2),
+            'thres_3': partial(threshold_metric, threshold=3),
+        }
+        local_rank = self.local_rank
+        evaluator_cfgs = self.cfgs.EVALUATOR
+
+        for i, data in enumerate(self.eval_loader):
+            for k, v in data.items():
+                data[k] = v.to(local_rank) if torch.is_tensor(v) else v
+
+            with torch.cuda.amp.autocast(enabled=self.cfgs.OPTIMIZATION.AMP):
+                model_pred = self.model(data)
+                model_pred2 = other_model(data)
+
+            disp_pred = model_pred['disp_pred']
+            disp_pred2 = model_pred2['disp_pred']
+            disp_gt = data["disp"]
+            mask = (disp_gt < evaluator_cfgs.MAX_DISP) & (disp_gt > 0)
+            yield data, disp_pred, disp_pred2, disp_gt, mask
+
+
+    @torch.no_grad()
     def eval_one_epoch(self, current_epoch):
 
         metric_func_dict = {

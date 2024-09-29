@@ -49,7 +49,7 @@ MODEL:
 
 OPTIMIZATION:
     FREEZE_BN: false
-    SYNC_BN: true
+    SYNC_BN: false
     AMP: false
     BATCH_SIZE_PER_GPU: 16
     NUM_EPOCHS: 2000

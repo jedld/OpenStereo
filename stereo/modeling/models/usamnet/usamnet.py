@@ -419,7 +419,7 @@ class SelfAttention(nn.Module):
         self.query_conv = nn.Conv2d(in_channels, in_channels // 8, 1)
         self.key_conv = nn.Conv2d(in_channels, in_channels // 8, 1)
         self.value_conv = nn.Conv2d(in_channels, in_channels, 1)
-        self.softmax = nn.Softmax(dim=-1)  # Softmax over the last dimension to create attention maps
+        self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x):
         batch_size, channels, height, width = x.size()
@@ -430,8 +430,8 @@ class SelfAttention(nn.Module):
         attention = self.softmax(torch.bmm(query, key))
         out = torch.bmm(value, attention.permute(0, 2, 1))
         out = out.view(batch_size, channels, height, width)
-        
-        return out + x  # Skip connection
+
+        return out + x
 
 class SASegStereoCNN(BaseSegmentationCNN):
     def __init__(self, device, load_sam=False):
